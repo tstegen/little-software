@@ -26,11 +26,13 @@ public class JBoardGame extends JPanel {
 			
 	public JBoardGame(int n, JToggleButton[] list){
 		super();
+		
 		// initialisation des paramètres.
 		this.N = n;
 		this.GRIDLEN = this.N*this.N;
 		this.HEIGHT = this.WIDTH = this.GRIDLEN *50;
 		this.jtbCase = list;
+		
 		// intialisation de la fenêtre.
 		this.setSize();
 		this.initComponents();

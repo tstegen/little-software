@@ -17,11 +17,7 @@ public class Connection extends Thread{
 	Socket socket;
 	BufferedReader entree;
 	PrintStream sortie;
-	
-	public Connection() {
 		
-	}
-	
 	public Connection (Socket socket) {
 		this.socket = socket;
 		Vector<Integer> line = new Vector<>();

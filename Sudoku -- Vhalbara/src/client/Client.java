@@ -107,7 +107,7 @@ public abstract class Client {
 		return verif;
 	}
 	
-	public void fermeServeur() {
+	public void closeServer() {
 		try{
 			sortie.println("disconnect");
 			sortie.close();

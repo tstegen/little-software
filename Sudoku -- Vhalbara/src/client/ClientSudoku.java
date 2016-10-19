@@ -26,9 +26,7 @@ public class ClientSudoku extends Client{
 	private JToggleButton listCase[];
 	private JButtonBar buttonBar;
 	private JButton listButton[];
-	
-	
-	
+		
 	public ClientSudoku (){
 		super();
 		this.frame = new JFrame();
@@ -82,7 +80,7 @@ public class ClientSudoku extends Client{
 		this.frame.addWindowListener (new WindowAdapter(){
 			public void windowClosing (WindowEvent e){
 				frame.dispose();
-				fermeServeur();
+				closeServer();
 			}
 		});
 		this.frame.setResizable(false);

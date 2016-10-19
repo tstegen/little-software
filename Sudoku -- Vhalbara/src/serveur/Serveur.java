@@ -7,7 +7,7 @@ import java.net.Socket;
 public class Serveur {
 
 	/**
-	 * @param args
+	 * @param args Parametre de la ligne de commande
 	 */
 	public static void main(String[] args) {
 		int portEcoute = 10309;
