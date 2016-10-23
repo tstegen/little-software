@@ -5,33 +5,35 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridLayout;
 import java.util.Enumeration;
+import java.util.Vector;
 
 import javax.swing.AbstractButton;
 import javax.swing.ButtonGroup;
 import javax.swing.JPanel;
-import javax.swing.JToggleButton;
 import javax.swing.border.LineBorder;
 
 public class JBoardGame extends JPanel {
 
 	private static final long serialVersionUID = 1L;
 	
-	private final int WIDTH;
-	private final int HEIGHT;
+	private final int WIDTH, HEIGHT;
 	
 	private final int N, GRIDLEN;
 	
 	private ButtonGroup group;
-	private JToggleButton[] jtbCase;
+	private JCase[] jtbCase;
 			
-	public JBoardGame(int n, JToggleButton[] list){
+	public JBoardGame(int n){
 		super();
 		
 		// initialisation des paramètres.
 		this.N = n;
 		this.GRIDLEN = this.N*this.N;
 		this.HEIGHT = this.WIDTH = this.GRIDLEN *50;
-		this.jtbCase = list;
+		this.jtbCase = new JCase[this.GRIDLEN*this.GRIDLEN];
+		
+		for(int i=(this.GRIDLEN*this.GRIDLEN)-1; i>=0; i--)
+			this.jtbCase[i] = new JCase();
 		
 		// intialisation de la fenêtre.
 		this.setSize();
@@ -88,7 +90,7 @@ public class JBoardGame extends JPanel {
 			this.jtbCase[i].setBorder(new LineBorder(Color.BLACK,1));
 			this.jtbCase[i].setFont(new Font("Serif", Font.PLAIN, 24));
 			this.jtbCase[i].setForeground(Color.BLACK);
-			
+			this.jtbCase[i].setFocusPainted(false);
 			this.group.add(this.jtbCase[i]);
 			this.add(this.jtbCase[i]);
 		}
@@ -99,7 +101,7 @@ public class JBoardGame extends JPanel {
 		
 		for(int i=0; i<this.GRIDLEN*this.GRIDLEN; i++){
 			Color bg = ((maskSquare[i])%2 == 0)?Color.WHITE: Color.LIGHT_GRAY;
-			this.jtbCase[i].setBackground(bg);
+			this.jtbCase[i].setUnlockBackground(bg);
 			JpSquare[maskSquare[i]].setBackground(bg);
 			JpSquare[maskSquare[i]].add(this.jtbCase[i]);
 		}
@@ -141,4 +143,76 @@ public class JBoardGame extends JPanel {
 	void setValiditySquare(int position, boolean validity){
 		this.setValiditySquare(position/this.GRIDLEN,position%this.GRIDLEN,validity);
 	}
+
+	public Boolean LoadGrid(Vector<String[]> generateNewGrid) {
+		int position = 0;
+		
+		if(generateNewGrid == null )
+			return false;
+		
+		for(String[] line : generateNewGrid){
+			for(String col : line){
+				jtbCase[position].setValue(col);
+				if(Integer.parseInt(col) >0) jtbCase[position].setEnabled(false);
+				position++;
+			}
+		}
+		return true;
+	}
+
+	public Boolean ResolveGrid(String[] strings) {
+			
+		if(strings == null )
+			return false;
+		
+		for(int i=1; i<strings.length; i++) {
+				if(!jtbCase[i-1].isEnabled() && !jtbCase[i-1].getValue().equals(strings[i]))
+					return false;
+				
+				jtbCase[i-1].setValue(strings[i]);
+
+		}
+		return true;
+	}
+	
+	public Boolean updateSelectedButton(String newValueButton) {
+		int position = getSelectedIndex();
+		
+		if(position < 0)
+			return false;
+		
+		jtbCase[position].setValue(newValueButton);
+		return true;
+	}
+
+	public Boolean lockSelectedCase() {
+		int position = getSelectedIndex();
+		
+		if(position < 0)
+			return false;
+		
+		jtbCase[position].setLock(!jtbCase[position].isLock());
+		if(jtbCase[position].isLock()) group.clearSelection();
+		
+		return true;
+	}
+
+	public boolean getStateSelectedCase() {
+		int position = getSelectedIndex();
+		
+		if(position < 0)
+			return false;
+		
+		return jtbCase[position].isLock();
+	}
+
+	public Boolean updateButton(int i, String value) {
+		
+		if(i< 0)
+			return false;
+		
+		jtbCase[i].setValue(value);
+		return true;
+	}
+	
 }

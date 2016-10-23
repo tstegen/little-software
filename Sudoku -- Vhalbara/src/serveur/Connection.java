@@ -1,33 +1,41 @@
 package serveur;
 
 import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.net.Socket;
 import java.util.Vector;
 
+import serveur.tool.ExecuteCpp;
+
 public class Connection extends Thread{
-	
-	private final String FACILE = "0 8 7 9 0 0 0 0 0 0 0 0 0 7 1 0 6 0 0 0 0 4 8 0 0 5 7 0 1 2 5 0 0 6 7 0 3 0 0 0 1 0 0 0 4 0 5 9 0 0 4 1 2 0 8 9 0 0 4 2 0 0 0 0 2 0 7 5 0 0 0 0 0 0 0 0 0 8 2 3 0";
-	
+	private final String PATH = "bin/serveur";
+
+	private final String EASY = PATH + "/grid/sudokufacile.txt";
+	private final String MED = PATH + "/grid/sudokumoyen.txt";
+	private final String HARD = PATH + "/grid/sudokudifficile.txt";
+	private final String DEVIL = PATH + "/grid/sudokudiabolique.txt";
+
 	private Vector<Vector<Integer>> baseGrid, fixedMask;
 	private int n=3, gridLen = n*n ;
-	
+
 	Socket socket;
 	BufferedReader entree;
 	PrintStream sortie;
-		
+
 	public Connection (Socket socket) {
 		this.socket = socket;
 		Vector<Integer> line = new Vector<>();
 		for(int i=0; i<this.gridLen; i++){
 			line.add(new Integer(0));
 		}
-		
+
 		this.fixedMask = new Vector<>(this.gridLen);
 		this.baseGrid = new Vector<>(this.gridLen);
-		
+
 		for(int i=0; i<this.gridLen; i++){
 			this.baseGrid.add(i,new Vector<>(line));
 			this.fixedMask.add(i,new Vector<>(line));
@@ -50,7 +58,7 @@ public class Connection extends Thread{
 	synchronized int getGridAt(int position){
 		return this.getGridAt(position/this.gridLen, position%this.gridLen);
 	}
-	
+
 	synchronized void setGridAt(int x, int y, int value){
 		if(fixedMask.get(x).get(y) == 0){
 			baseGrid.get(x).set(y,new Integer(value));
@@ -58,10 +66,10 @@ public class Connection extends Thread{
 			logger("<Serveur> La valeur de cette case (int"+ x + ",int" + y +") est fixée.");
 		}
 	}
-	
+
 	synchronized private void SendNewGrid() throws IOException{
 		String fin, texte ="" ;
-		
+
 		try {
 			while(!(fin=entree.readLine()).equalsIgnoreCase("|end")){
 				texte += fin;
@@ -70,31 +78,33 @@ public class Connection extends Thread{
 		} catch (IOException e) {
 			System.out.println("Probleme d'entree-sortie");
 		}
-		
+
 		String sub [] = texte.split("[|]");
+
+		String grid = ReadGrid(Integer.parseInt(sub[0]),sub[1]);
 		
-		generateNewGrid(Integer.parseInt(sub[0]));
-		
-		sortie.println(getCurrentGrid());
-		
+		generateNewGrid(Integer.parseInt(sub[0]),grid);
+
+		sortie.println(grid);
+
 		logger("<Service> New grid send.");
 	}
-	
+
 	synchronized private void SendCurrentGrid() throws IOException{
 		String texte;
 		texte=entree.readLine();
 		String sub [] = texte.split("[|]");
-		
-		generateNewGrid(Integer.parseInt(sub[0]));
-		
+
+		//generateNewGrid(Integer.parseInt(sub[0]));
+
 		sortie.println(getCurrentGrid());
-		
+
 		logger("<Service> Current grid send.");
 	}
-	
+
 	synchronized private void UpdateGrid() throws IOException{
 		String fin, texte ="" ;
-		
+
 		try {
 			while(!(fin=entree.readLine()).equalsIgnoreCase("|end")){
 				texte += fin;
@@ -102,21 +112,28 @@ public class Connection extends Thread{
 		} catch (IOException e) {
 			System.out.println("Probleme d'entree-sortie");
 		}
-		
+
 		String sub [] = texte.split("[|]");
-		
-		int temp = getGridAt(Integer.parseInt(sub[0]));
-		
-		setGridAt(Integer.parseInt(sub[0]),Integer.parseInt(sub[1]));
-		
-		logger("<Service> Last value " + temp + " - New value " + getGridAt(Integer.parseInt(sub[0])) + ".");
-		
-		sortie.println(true);
+		int ind = Integer.parseInt(sub[0]);
+		if(ind >= 0){
+			int temp = getGridAt(ind);
+
+			setGridAt(ind,Integer.parseInt(sub[1]));
+
+			logger("<Service> Last value " + temp + " - New value " + getGridAt(Integer.parseInt(sub[0])) + ".");
+
+			sortie.println(true);	
+		} else {
+			logger("<Service> Mise à jour impossible.");
+
+			sortie.println(false);				
+		}
+
 	}
-	
+
 	synchronized private void CheckingGrid() throws IOException{
 		String fin, texte ="" ;
-		
+
 		try {
 			while(!(fin=entree.readLine()).equalsIgnoreCase("|end")){
 				texte += fin;
@@ -124,71 +141,95 @@ public class Connection extends Thread{
 		} catch (IOException e) {
 			System.out.println("Probleme d'entree-sortie");
 		}
-		
+
 		String sub [] = texte.split("[|]");
-				
+
 		Boolean verif = false;
-		if(sub[0].equalsIgnoreCase("line")){
-			texte = "line";
-			verif = CheckLine(Integer.parseInt(sub[1]));
-		} else {
-			if(sub[0].equalsIgnoreCase("column")){
-				texte = "column";
-				verif = CheckColumn(Integer.parseInt(sub[1]));
+		int val, pos = Integer.parseInt(sub[1]);
+		
+		if(fixedMask.get(pos/this.gridLen).get(pos%this.gridLen) == 0){
+			val = getGridAt(pos);
+			this.setGridAt(pos,0);
+			
+			if(sub[0].equalsIgnoreCase("line")){
+				texte = "line";
+				verif = CheckLine(pos/this.gridLen, val);
 			} else {
-				if(sub[0].equalsIgnoreCase("square")){
-					texte = "square";
-					verif = CheckSquare(Integer.parseInt(sub[1]));
+				if(sub[0].equalsIgnoreCase("column")){
+					texte = "column";
+					verif = CheckColumn(pos%this.gridLen, val);
+				} else {
+					if(sub[0].equalsIgnoreCase("square")){
+						texte = "square";
+						verif = CheckSquare(pos,val);
+					}
 				}
 			}
+			this.setGridAt(pos,val);
 		}
-		
-		logger("<Service> "+ texte + " " + verif + ".");
-		
-		sortie.println(verif);
+
+		logger("<Service> "+ texte + " is " + verif + ".");
+
+		sortie.println("this " + texte + " is " + verif + ".");
 	}
-	
+
 	synchronized private void CheckingBoardGame() throws IOException{
-		
+
 		String fin;
-		
+
 		try {
 			while(!(fin=entree.readLine()).equalsIgnoreCase("|end"))
 				System.out.println(fin);
 		} catch (IOException e) {
 			System.out.println("Probleme d'entree-sortie");
 		}
-		
+
 		Boolean verif = VerifyBoardGame();
-		
+
 		logger("<Service> this boardgame is " + verif + ".");
 		sortie.println(verif);
 	}
 	
+	synchronized private void ResolveGrid() throws IOException{
+
+		String fin;
+
+		try {
+			while(!(fin=entree.readLine()).equalsIgnoreCase("|end"))
+				System.out.println(fin);
+		} catch (IOException e) {
+			System.out.println("Probleme d'entree-sortie");
+		}
+
+		String reponse =ExecuteCpp.StartCommand("SudokuSolver.exe " + this.getCurrentGrid().replaceAll("\\s", "-"));
+		
+		sortie.println(reponse);
+	}
+
 	private void SendErrorCode() throws IOException{
 		logger("<Service> Error.");
 		sortie.println(25);
 	}
-	
+
 	public void logger(String log) {
 		System.out.println(log);
 	}
-	
+
 	public void run() {
 		int chx;
 		String texte, sub [];
 		try {
-			
-			while(!(texte=entree.readLine()).equalsIgnoreCase("disconnect")){
+
+			while((texte=entree.readLine())!=null && !(texte).equalsIgnoreCase("disconnect")){
 				sub = texte.split("[|]");
 				System.out.println(texte);
-				
+
 				try{
 					chx = Integer.parseInt(sub[0]);
 				} catch(NumberFormatException e) {
 					chx = -1;
 				}
-				
+
 				switch(chx){
 				case 1:
 					this.SendNewGrid();
@@ -205,10 +246,12 @@ public class Connection extends Thread{
 				case 5:
 					this.CheckingBoardGame();
 					break;
+				case 6:
+					this.ResolveGrid();
 				default:
 					this.SendErrorCode(); // code d'erreur (25)
 				}
-				
+
 				sortie.println("|end");
 			}
 			sortie.close();
@@ -218,19 +261,19 @@ public class Connection extends Thread{
 			System.exit(0);
 		}
 	}
-	
+
 	synchronized void setGridAt(int position, int value){
 		this.setGridAt(position/this.gridLen, position%this.gridLen, value);
 	}
 	
-	synchronized void generateNewGrid(int n){
+	synchronized void generateNewGrid(int n, String grid){
 		this.n=n; 
 		this.gridLen = n*n ;
-		String sub[] = FACILE.split(" ") ;
+		String sub[] = grid.split(" ");
 		this.fixedMask = new Vector<>(this.gridLen);
 		this.baseGrid = new Vector<>(this.gridLen);
 		Vector<Integer> line = new Vector<>(this.gridLen), lineMask = new Vector<>(this.gridLen);
-		
+
 		for(int i=0; i<this.gridLen; i++){
 			for(int j=0; j<this.gridLen; j++){
 				line.add(j,new Integer(sub[i*this.gridLen+j]));
@@ -240,6 +283,32 @@ public class Connection extends Thread{
 			this.fixedMask.add(i,new Vector<>(line));
 		}
 	}
+
+	synchronized private String ReadGrid(int n, String lvl){
+		
+		// Selectionne le fichier à lire
+		String file = lvl.equalsIgnoreCase("facile")?this.EASY:lvl.equalsIgnoreCase("intermediare")?this.MED:lvl.equalsIgnoreCase("difficile")?this.HARD:this.DEVIL;
+		
+		try{
+			InputStream ips=new FileInputStream(file); 
+			InputStreamReader ipsr=new InputStreamReader(ips);
+			BufferedReader br=new BufferedReader(ipsr);
+			String line,grid="";
+			if((line=br.readLine())!=null){
+				grid += line;
+				while ((line=br.readLine())!=null){
+					grid += " " + line;
+				}
+			}
+			br.close(); 
+			return grid;
+		}		
+		catch (Exception e){
+			System.out.println(e.toString());
+		}
+		
+		return null;
+	}	
 	
 	synchronized String getCurrentGrid(){
 		String grid = Integer.toString(getGridAt(0,0));
@@ -251,50 +320,50 @@ public class Connection extends Thread{
 		logger("<Serveur> the grid is " + grid + ".");
 		return grid;
 	}
-	
-	synchronized Boolean CheckLine(int x, int num){
+
+	synchronized Boolean CheckLine(int x, int value){
 		for(int i=0; i<this.gridLen;i++){
-			if(getGridAt(x,i) == num) 
+			if(getGridAt(x,i) == value) 
 				return false;		
 		}
 		return true;
 	}
-	
-	synchronized Boolean CheckLine(int position){
-		return this.CheckLine(position/this.gridLen,position%this.gridLen);
-	}
-	
-	synchronized Boolean CheckColumn(int x,int y){
+
+	synchronized Boolean CheckColumn(int y, int value){
 		for(int i=0; i<this.gridLen;i++){
-			if(getGridAt(i,y) == getGridAt(x,y) && i!=x) 
+			if(getGridAt(i,y) == value) 
 				return false;	
 		}
 		return true;
 	}
-	
-	synchronized Boolean CheckColumn(int position){
-		return this.CheckColumn(position/this.gridLen,position%this.gridLen);
-	}
-		
-	synchronized Boolean CheckSquare(int x,int y){
+
+	synchronized Boolean CheckSquare(int x,int y, int value){
 		int xSquare = x-(x%this.n) , ySquare = y-(y%this.n);
-	    for (int i=xSquare ; i < xSquare+3; i++){
-	        for (int j=ySquare; j < ySquare+3; j++){
-	        	if (this.getGridAt(i, j) == this.getGridAt(x, y) && (i!=x || j!=y))
-	            	return false;
-	        }
-	    }
-	    return true;
+		for (int i=xSquare ; i < xSquare+3; i++){
+			for (int j=ySquare; j < ySquare+3; j++){
+				if (this.getGridAt(i, j) == value)
+					return false;
+			}
+		}
+		return true;
 	}
-	
-	synchronized Boolean CheckSquare(int position){
-		return this.CheckSquare(position/this.gridLen,position%this.gridLen);
+
+	synchronized Boolean CheckSquare(int position, int value){
+		return this.CheckSquare(position/this.gridLen,position%this.gridLen, value);
 	}
-	
+
 	synchronized Boolean VerifyBoardGame(){
+		int val;
 		for(int i=0; i<this.gridLen*this.gridLen;i++){
-			if(!CheckLine(i) || !CheckColumn(i) || !CheckSquare(i)){
-				return false;
+			if(fixedMask.get(i/this.gridLen).get(i%this.gridLen) == 0){
+				val = getGridAt(i);
+				this.setGridAt(i,0);
+				
+				if(!CheckLine(i/this.gridLen,val) || !CheckColumn(i%this.gridLen,val) || !CheckSquare(i,val)){
+					return false;
+				}		
+			
+				this.setGridAt(i,val);
 			}
 		}
 		return true;
